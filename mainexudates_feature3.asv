@@ -1,0 +1,114 @@
+%% Extract optic disc and artifacts from one image
+tic
+% Read image
+retinaRGB = imread('C:\Users\SHRUTI\Desktop\Project\diabetic-retinopathy-master\Image processing\21.jpg');
+% Resize image
+retinaRGB = resizeretina(retinaRGB, 752, 500);
+% Get optic disc mask
+closingThresholdValue = 0.64;
+opticDiscDilationSize = 4;
+artifactMinSize = 1100;
+%[opticDiscMask, artifactsMask] = getopticdiscartifacts(retinaRGB, ...
+           % closingThresholdValue, opticDiscDilationSize, artifactMinSize);
+        
+toc
+
+%% Extract exudates from one image
+tic
+fileName = 'C:\Users\SHRUTI\Desktop\Project\diabetic-retinopathy-master\Image processing\21.jpg';    
+% Read image
+retinaRGB = imread(fileName);
+% Resize image
+retinaRGB = resizeretina(retinaRGB, 752, 500);
+% Read optic disc mask
+opticDiscMask = imread(strrep(fileName, '.jpg', '.png'));
+xx = double(opticDiscMask);
+z = mesh(xx);
+artifactsMask = imread(strrep(fileName, '.jpg', '.png'));
+xx1 = double(artifactsMask);
+z1 = mesh(xx1);
+% Get optic disc mask
+opticDiscDilation = 10;
+
+%% Get intensity
+    % subplot(1, 2, 1), imshow(retinaRGB); title('RGB');
+    I = double(retinaRGB) / 255;
+    I = sum(I, 3) ./ 3;
+    % subplot(1, 2, 2), imshow(I); title('Intensity');
+
+    %% Median filter on intensity channel
+    % subplot(1, 2, 1), imshow(I); title('Before median filter');
+    I = medfilt2(I);
+    %I = imgaussfilt(I);
+    % subplot(1, 2, 2), imshow(I); title('Median filter on intensity channel');
+
+    %% Histogram equalization
+    % subplot(1, 2, 1), imshow(I); title('Before histogram equalization');
+    I = adapthisteq(I);
+    % subplot(1, 2, 2), imshow(I); title('Histogram equalization');    
+
+  
+    %% Remove vessels by grayscale closing
+    
+    % subplot(1, 2, 1), imshow(I); title('Before grayscale closing');
+    se = strel('disk', 8);
+    closeI = imclose(I, se);
+    
+    %% Local standard deviation of an image
+    % subplot(1, 2, 1), imshow(closeI); title('Before standard deviation');
+    deviation = stdfilt(closeI, ones(7)); 
+    % subplot(1, 2, 2), imshow(deviation, []); title('Standard deviation');
+
+    %% Threshold and dilation
+    % subplot(1, 2, 1), imshow(deviation, []); title('Before threshold and dilation');
+    level = graythresh(deviation);
+    mask = im2bw(deviation, level);
+    se = strel('disk', 6);
+    mask = imdilate(mask, se);
+    % subplot(1, 2, 2), imshow(mask); title('Thresholded and dilated');
+    
+      %% Watershed Transformation
+    
+    %mask = watershed(mask);
+    
+
+    %% Create region of interest
+    retinaMask = im2bw(I, 0.2);
+    retinaMask = imfill(retinaMask, 'holes');
+    se = strel('disk', 16);
+    retinaMask = imerode(retinaMask, se);
+    % subplot(1, 2, 1), imshow(I), title('Original image');
+    % subplot(1, 2, 2), imshow(I, 'InitialMag', 'fit')
+    % Make a truecolor all-green image.
+    % green = cat(3, zeros(size(I)), ones(size(I)), zeros(size(I)));
+    % hold on
+    % h = imshow(green);
+    % hold off
+    % Use our influence map as the AlphaData for the solid green image.
+    % set(h, 'AlphaData', retinaMask)
+
+    %% Remove circular shape around retina
+    % subplot(1, 2, 1), imshow(mask); title('Before removing circular shape around');
+    maskOfCenter = mask .* retinaMask;
+    % subplot(1, 2, 2), imshow(maskOfCenter); title('Only region of interest');
+    
+    %% Flood fill
+    % subplot(1, 2, 1), imshow(maskOfCenter); title('Before filling');
+    maskFilled = imfill(maskOfCenter, 'holes');
+    size(maskFilled);
+    % subplot(1, 2, 2), imshow(maskFilled); title('Flood filled');
+
+    %% Remove optic disc
+    % subplot(1, 2, 1), imshow(maskFilled); title('Before optic disc elimination');
+    se = strel('disk', opticDiscDilation);
+    opticDiscMask = imdilate(z, se);
+    maskOfInterest = uint8(retinaRGB) .* imcomplement(z);
+    
+     %% Remove artifacts
+    % subplot(1, 2, 1), imshow(maskOfInterest); title('Before artifacts elimination');
+    se = strel('disk', opticDiscDilation);
+    artifactsMask = imdilate(z1, se);
+    maskOfInterest = uint8(maskOfInterest) .* imcomplement(z1);
+    xx2 = double(maskOfInterest);
+    z3 = mesh(xx2);
+    % subplot(1, 2,
